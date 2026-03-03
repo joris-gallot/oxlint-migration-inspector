@@ -1,7 +1,7 @@
 {
   "name": "oxlint-migration-inspector",
   "type": "module",
-  "version": "1.4.2",
+  "version": "0.1.1",
   "packageManager": "pnpm@10.22.0",
   "description": "A visual tool to migrate incrementally from ESLint flat config to Oxlint",
   "license": "Apache-2.0",
