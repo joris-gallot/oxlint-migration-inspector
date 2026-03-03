@@ -1,17 +1,48 @@
 /* eslint-disable no-console */
-import type { ErrorInfo, FilesGroup, FlatConfigItem, Payload, ResolvedPayload, RuleConfigStates, RuleInfo } from '~~/shared/types'
+import type {
+  ErrorInfo,
+  FilesGroup,
+  FlatConfigItem,
+  Payload,
+  ResolvedPayload,
+  RuleConfigStates,
+  RuleInfo,
+  WorkspacePayload,
+} from '~~/shared/types'
 import { $fetch } from 'ofetch'
-import { computed, ref } from 'vue'
+import { computed, ref, watchEffect } from 'vue'
 import { isGeneralConfig, isIgnoreOnlyConfig } from '~~/shared/configs'
 import { getRuleLevel, getRuleOptions } from '~~/shared/rules'
-import { configsOpenState, fileGroupsOpenState } from './state'
+import {
+  configsOpenState,
+  fileGroupsOpenState,
+  selectedProjectId,
+} from './state'
 
-const LOG_NAME = '[ESLint Config Inspector]'
+const LOG_NAME = '[Oxlint Migration Inspector]'
 
-const data = ref<Payload>({
+const EMPTY_PAYLOAD: Payload = {
   rules: {},
   configs: [],
-  meta: {} as any,
+  meta: {
+    lastUpdate: 0,
+    basePath: '',
+    configPath: '',
+  },
+}
+
+const data = ref<WorkspacePayload>({
+  workspace: {
+    generatedAt: 0,
+    root: '',
+    projects: [],
+    totals: {
+      projectCount: 0,
+      eslintActiveRules: 0,
+      coverageDefaultPct: 0,
+      coverageMaxPct: 0,
+    },
+  },
 })
 
 /**
@@ -27,40 +58,45 @@ export const isFetching = ref(false)
  */
 export const errorInfo = ref<ErrorInfo>()
 
-function isErrorInfo(payload: Payload | ErrorInfo): payload is ErrorInfo {
+function isErrorInfo(payload: WorkspacePayload | ErrorInfo): payload is ErrorInfo {
   return 'error' in payload
 }
 
 async function get(baseURL: string) {
   isFetching.value = true
-  const payload = await $fetch<Payload | ErrorInfo>('/api/payload.json', { baseURL })
+  const payload = await $fetch<WorkspacePayload | ErrorInfo>('/api/payload.json', { baseURL })
   if (isErrorInfo(payload)) {
     errorInfo.value = payload
     isLoading.value = false
     isFetching.value = false
     return
   }
+
   errorInfo.value = undefined
   data.value = payload
   isLoading.value = false
   isFetching.value = false
-  console.log(LOG_NAME, 'Config payload', payload)
+  console.log(LOG_NAME, 'Workspace payload', payload)
   return payload
 }
 
-let _promise: Promise<Payload | undefined> | undefined
+let _promise: Promise<WorkspacePayload | undefined> | undefined
 
 export function init(baseURL: string) {
   if (_promise)
     return
+
   _promise = get(baseURL)
     .then((payload) => {
       if (!payload)
         return
 
-      if (typeof payload.meta.wsPort === 'number') {
-      // Connect to WebSocket, listen for config changes
-        const ws = new WebSocket(`ws://${location.hostname}:${payload.meta.wsPort}`)
+      const wsPort = payload.workspace.projects.find(
+        project => typeof project.payload.meta.wsPort === 'number',
+      )?.payload.meta.wsPort
+
+      if (typeof wsPort === 'number') {
+        const ws = new WebSocket(`ws://${location.hostname}:${wsPort}`)
         ws.addEventListener('message', async (event) => {
           console.log(LOG_NAME, 'WebSocket message', event.data)
           const payload = JSON.parse(event.data)
@@ -86,7 +122,36 @@ export function ensureDataFetch() {
   return _promise
 }
 
-export const payload = computed(() => Object.freeze(resolvePayload(data.value!)))
+export const workspace = computed(() => data.value.workspace)
+export const projects = computed(() => workspace.value.projects)
+
+export const selectedProject = computed(() => {
+  if (projects.value.length === 0)
+    return undefined
+
+  return projects.value.find(project => project.id === selectedProjectId.value) ?? projects.value[0]
+})
+
+watchEffect(() => {
+  if (projects.value.length === 0)
+    return
+
+  if (!selectedProject.value)
+    return
+
+  if (selectedProjectId.value !== selectedProject.value.id)
+    selectedProjectId.value = selectedProject.value.id
+})
+
+export const projectReport = computed(() => selectedProject.value)
+
+export function selectProject(projectId: string) {
+  selectedProjectId.value = projectId
+}
+
+export const migrationRules = computed(() => projectReport.value?.rules ?? [])
+
+export const payload = computed(() => Object.freeze(resolvePayload(projectReport.value?.payload ?? EMPTY_PAYLOAD)))
 
 export function getRuleFromName(name: string): RuleInfo {
   return payload.value.rules[name] || {
@@ -108,7 +173,6 @@ export function resolvePayload(payload: Payload): ResolvedPayload {
   const globToConfigs = new Map<string, FlatConfigItem[]>()
 
   payload.configs.forEach((config, index) => {
-    // Rule Level
     if (config.rules) {
       Object.entries(config.rules).forEach(([name, raw]) => {
         const value = getRuleLevel(raw)
@@ -126,7 +190,6 @@ export function resolvePayload(payload: Payload): ResolvedPayload {
       })
     }
 
-    // Globs
     for (const glob of config.files?.flat() || []) {
       if (!globToConfigs.has(glob))
         globToConfigs.set(glob, [])
@@ -140,7 +203,6 @@ export function resolvePayload(payload: Payload): ResolvedPayload {
   })
 
   configsOpenState.value = payload.configs.length >= 10
-    // collapse all if there are too many items
     ? payload.configs.map(() => false)
     : payload.configs.map(() => true)
 
@@ -158,8 +220,7 @@ function resolveFiles(payload: Payload): ResolvedPayload['filesResolved'] {
   if (!payload.files)
     return undefined
 
-  const generalConfigIndex = payload.configs.filter(i => isGeneralConfig(i))
-    .map(i => i.index)
+  const generalConfigIndex = payload.configs.filter(i => isGeneralConfig(i)).map(i => i.index)
 
   const files: string[] = []
   const globToFiles = new Map<string, Set<string>>()

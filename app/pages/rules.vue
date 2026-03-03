@@ -1,217 +1,297 @@
 <script setup lang="ts">
-import { debouncedWatch } from '@vueuse/core'
-import Fuse from 'fuse.js'
+import type { RuleLevel, RuleSupportStatus } from '~~/shared/types'
+import { useClipboard } from '@vueuse/core'
 import { computed, ref } from 'vue'
-import { payload } from '~/composables/payload'
-import { bpSm, filtersRules as filters, stateStorage } from '~/composables/state'
+import { migrationRules, projectReport } from '~/composables/payload'
+import { migrationRuleFilters } from '~/composables/state'
 
-const rules = computed(() => Object.values(payload.value.rules))
-const pluginNames = computed(() => Array.from(new Set(rules.value.map(i => i.plugin))).filter(Boolean))
+const pluginFilter = ref('')
+const levelFilter = ref<'' | RuleLevel>('')
 
-const conditionalFiltered = computed(() => {
-  let conditional = rules.value
+const rules = computed(() => migrationRules.value)
 
-  if (filters.plugin) {
-    conditional = conditional
-      .filter(rule => rule.plugin === filters.plugin)
-  }
-
-  if (filters.fixable != null) {
-    conditional = conditional
-      .filter(rule => !!rule.fixable === filters.fixable)
-  }
-
-  switch (filters.state) {
-    case 'using':
-      conditional = conditional.filter(rule => payload.value.ruleToState.get(rule.name))
-      break
-    case 'unused':
-      conditional = conditional.filter(rule => !payload.value.ruleToState.get(rule.name))
-      break
-    case 'overloads':
-      conditional = conditional.filter(rule => (payload.value.ruleToState.get(rule.name)?.length || 0) > 1)
-      break
-    case 'error':
-      conditional = conditional.filter(rule => payload.value.ruleToState.get(rule.name)?.some(i => i.level === 'error'))
-      break
-    case 'warn':
-      conditional = conditional.filter(rule => payload.value.ruleToState.get(rule.name)?.some(i => i.level === 'warn'))
-      break
-    case 'off':
-      conditional = conditional.filter(rule => payload.value.ruleToState.get(rule.name)?.some(i => i.level === 'off'))
-      break
-    case 'off-only':
-      conditional = conditional.filter((rule) => {
-        const states = payload.value.ruleToState.get(rule.name)
-        if (!states?.length)
-          return false
-        return states.every(i => i.level === 'off')
-      })
-      break
-  }
-
-  switch (filters.status) {
-    case 'active':
-      conditional = conditional.filter(rule => !rule.deprecated)
-      break
-    case 'recommended':
-      conditional = conditional.filter(rule => rule.docs?.recommended)
-      break
-    case 'fixable':
-      conditional = conditional.filter(rule => rule.fixable)
-      break
-    case 'deprecated':
-      conditional = conditional.filter(rule => rule.deprecated)
-      break
-  }
-
-  return conditional
+const pluginOptions = computed(() => {
+  const names = rules.value.map(rule => pluginFromRule(rule.name))
+  return Array.from(new Set(names)).sort((a, b) => a.localeCompare(b))
 })
 
-const fuse = computed(() => new Fuse(conditionalFiltered.value, {
-  keys: ['name', 'docs.description'],
-  threshold: 0.5,
-}))
+const filteredRules = computed(() => {
+  const query = migrationRuleFilters.search.trim().toLowerCase()
 
-const filtered = ref(conditionalFiltered.value)
+  return rules.value.filter((rule) => {
+    if (migrationRuleFilters.status && rule.status !== migrationRuleFilters.status)
+      return false
 
-debouncedWatch(
-  () => [filters.search, conditionalFiltered.value],
-  () => {
-    if (!filters.search)
-      return filtered.value = conditionalFiltered.value
-    filtered.value = fuse.value.search(filters.search).map(i => i.item)
-  },
-  { debounce: 200 },
-)
-const isDefaultFilters = computed(() => !(filters.search || filters.plugin || filters.state !== 'using' || filters.status !== 'active'))
+    if (pluginFilter.value && pluginFromRule(rule.name) !== pluginFilter.value)
+      return false
+
+    if (levelFilter.value && !rule.eslintLevels.includes(levelFilter.value))
+      return false
+
+    if (!query)
+      return true
+
+    return (
+      rule.name.toLowerCase().includes(query)
+      || (rule.reason?.toLowerCase().includes(query) ?? false)
+    )
+  })
+})
+
+const prioritizedGaps = computed(() => {
+  const unsupported = rules.value.filter(rule => rule.status === 'unsupported').slice(0, 10)
+  const notImplemented = rules.value.filter(rule => rule.status === 'not_implemented').slice(0, 10)
+  return {
+    unsupported,
+    notImplemented,
+  }
+})
+
+const statusOptions: Array<{ value: RuleSupportStatus | '', label: string }> = [
+  { value: '', label: 'All statuses' },
+  { value: 'native_default', label: 'Native default' },
+  { value: 'via_js_plugins', label: 'Via js plugins' },
+  { value: 'requires_nursery', label: 'Requires nursery' },
+  { value: 'requires_type_aware', label: 'Requires type-aware' },
+  { value: 'not_implemented', label: 'Not implemented' },
+  { value: 'unsupported', label: 'Unsupported' },
+  { value: 'off_only', label: 'Off only' },
+]
+
+const { copy } = useClipboard()
+
+function pluginFromRule(ruleName: string) {
+  const slashIndex = ruleName.indexOf('/')
+  if (slashIndex < 0)
+    return 'eslint'
+  return ruleName.slice(0, slashIndex)
+}
+
+function statusLabel(status: RuleSupportStatus) {
+  return statusOptions.find(item => item.value === status)?.label ?? status
+}
+
+function statusClass(status: RuleSupportStatus) {
+  switch (status) {
+    case 'native_default':
+      return 'text-green border-green/30 bg-green:8'
+    case 'via_js_plugins':
+      return 'text-cyan border-cyan/30 bg-cyan:8'
+    case 'requires_nursery':
+    case 'requires_type_aware':
+      return 'text-yellow border-yellow/30 bg-yellow:8'
+    case 'unsupported':
+      return 'text-red border-red/30 bg-red:8'
+    case 'not_implemented':
+      return 'text-amber border-amber/30 bg-amber:8'
+    case 'off_only':
+      return 'text-gray border-gray/30 bg-gray:12'
+  }
+}
 
 function resetFilters() {
-  filters.search = ''
-  filters.plugin = ''
-  filters.state = 'using'
-  filters.status = 'active'
+  migrationRuleFilters.search = ''
+  migrationRuleFilters.status = ''
+  pluginFilter.value = ''
+  levelFilter.value = ''
 }
 </script>
 
 <template>
-  <div>
-    <div py4 flex="~ col gap-2">
-      <div relative flex>
-        <input
-          v-model="filters.search"
-          :class="filters.search ? 'font-mono' : ''"
-          placeholder="Search rules..."
-          border="~ base rounded-full"
-          w-full bg-transparent px3 py2 pl10 outline-none
-        >
-        <div absolute bottom-0 left-0 top-0 flex="~ items-center justify-center" p4 op50>
-          <div i-ph-magnifying-glass-duotone />
+  <div v-if="projectReport">
+    <div grid="~ cols-1 md:cols-5 gap-3" py4>
+      <div border="~ base rounded" p3>
+        <div text-xs op60>
+          Active ESLint Rules
+        </div>
+        <div text-2xl font-bold>
+          {{ projectReport.stats.eslintActiveRules }}
         </div>
       </div>
-      <div grid="~ cols-[max-content_1fr] gap-2" my2 items-center>
-        <div text-right text-sm op50>
-          Plugins
+      <div border="~ base rounded" p3>
+        <div text-xs op60>
+          Native Coverage
         </div>
-        <OptionSelectGroup
-          v-model="filters.plugin"
-          :options="['', ...pluginNames]"
-          :titles="['All', ...pluginNames]"
-          :props="[{}, ...pluginNames.map(i => ({
-            class: 'font-mono',
-            style: filters.plugin === i ? {
-              color: getPluginColor(i),
-              backgroundColor: getPluginColor(i, 0.1),
-            } : {},
-          }))]"
-        />
-        <div text-right text-sm op50>
-          Usage
+        <div text-2xl font-bold>
+          {{ projectReport.stats.coverageNativePct }}%
         </div>
-        <OptionSelectGroup
-          v-model="filters.state"
-          :options="['', 'using', 'unused', 'error', 'warn', 'off', 'overloads', 'off-only']"
-          :titles="['All', 'Using', 'Unused', 'Error', 'Warn', 'Off', 'Overloaded', 'Off Only']"
-        >
-          <template #default="{ value, title }">
-            <div class="flex items-center">
-              <div ml--1 mr-1 flex items-center>
-                <RuleLevelIcon v-if="value === 'error' || value === 'overloads'" level="error" />
-                <RuleLevelIcon v-if="value === 'warn' || value === 'overloads'" level="warn" />
-                <RuleLevelIcon v-if="value === 'off' || value === 'off-only' || value === 'overloads'" level="off" />
-              </div>
-              {{ title || value }}
-            </div>
-          </template>
-        </OptionSelectGroup>
-        <div text-right text-sm op50>
-          State
+      </div>
+      <div border="~ base rounded" p3>
+        <div text-xs op60>
+          Default Coverage
         </div>
-        <OptionSelectGroup
-          v-model="filters.status"
-          :options="['', 'active', 'recommended', 'fixable', 'deprecated']"
-          :titles="['All', 'Active', 'Recommended', 'Fixable', 'Deprecated']"
-        >
-          <template #default="{ value, title }">
-            <div flex items-center gap-1>
-              <div v-if="value === 'recommended'" i-ph-check-square-duotone ml--0.5 text-green />
-              <div v-if="value === 'fixable'" i-ph-wrench-duotone ml--0.5 text-amber />
-              <div v-if="value === 'deprecated'" i-ph-prohibit-inset-duotone ml--1 text-gray />
-              {{ title || value }}
-            </div>
-          </template>
-        </OptionSelectGroup>
+        <div text-2xl font-bold>
+          {{ projectReport.stats.coverageDefaultPct }}%
+        </div>
+      </div>
+      <div border="~ base rounded" p3>
+        <div text-xs op60>
+          Max Coverage
+        </div>
+        <div text-2xl font-bold>
+          {{ projectReport.stats.coverageMaxPct }}%
+        </div>
+      </div>
+      <div border="~ base rounded" p3>
+        <div text-xs op60>
+          Not Impl / Unsupported
+        </div>
+        <div text-2xl font-bold>
+          {{ projectReport.stats.notImplemented }} / {{ projectReport.stats.unsupported }}
+        </div>
       </div>
     </div>
 
-    <div items-center justify-between gap-2 md:flex>
-      <div flex="~ gap-2" lt-sm:flex-col>
-        <div
-          flex="~ inline gap-2 items-center"
-          border="~ gray/20 rounded-full" bg-gray:10 px3 py1
-        >
-          <div i-ph-list-checks-duotone />
-          <span>{{ filtered.length }}</span>
-          <span op75>rules {{ isDefaultFilters ? 'enabled' : 'filtered' }}</span>
-          <span text-sm op50>out of {{ rules.length }} rules</span>
-        </div>
-        <button
-          v-if="!isDefaultFilters"
-          flex="~ inline gap-2 items-center self-start"
-          border="~ purple/20 rounded-full" bg-purple:10 px3 py1
-          @click="resetFilters()"
-        >
-          <div i-ph-funnel-duotone text-purple />
-          <span op50>Clear Filter</span>
-          <div
-            i-ph-x ml--1 text-sm op25 hover:op100
-          />
-        </button>
-      </div>
-
-      <div v-if="!bpSm" flex="~ gap-1">
-        <button
-          btn-action
-          :class="{ 'btn-action-active': stateStorage.viewType === 'list' }"
-          @click="stateStorage.viewType = 'list'"
-        >
-          <div i-ph-list-duotone />
-          List
-        </button>
-        <button
-          btn-action
-          :class="{ 'btn-action-active': stateStorage.viewType === 'grid' }"
-          @click="stateStorage.viewType = 'grid'"
-        >
-          <div i-ph-grid-four-duotone />
-          Grid
-        </button>
-      </div>
-    </div>
-    <RuleList
-      my4
-      :rules="filtered"
-      :get-bind="(name: string) => ({ class: (payload.ruleToState.get(name)?.length || filters.state === 'unused') ? '' : 'op40' })"
+    <CoverageDefinitionsInfo
+      note="The percentages in this page are for the selected project only."
     />
+
+    <div grid="~ cols-1 md:cols-2 gap-3" pb4>
+      <div border="~ base rounded" p3>
+        <div mb2 text-sm font-semibold>
+          Prioritized Unsupported
+        </div>
+        <div v-if="!prioritizedGaps.unsupported.length" text-sm op60>
+          None
+        </div>
+        <ul v-else text-sm font-mono flex="~ col gap-1">
+          <li v-for="rule of prioritizedGaps.unsupported" :key="rule.name">
+            {{ rule.name }}
+          </li>
+        </ul>
+      </div>
+      <div border="~ base rounded" p3>
+        <div mb2 text-sm font-semibold>
+          Prioritized Not Implemented
+        </div>
+        <div v-if="!prioritizedGaps.notImplemented.length" text-sm op60>
+          None
+        </div>
+        <ul v-else text-sm font-mono flex="~ col gap-1">
+          <li v-for="rule of prioritizedGaps.notImplemented" :key="rule.name">
+            {{ rule.name }}
+          </li>
+        </ul>
+      </div>
+    </div>
+
+    <div border="~ base rounded" mb4 p3>
+      <div mb2 text-sm font-semibold>
+        Command Preview
+      </div>
+      <div flex="~ col gap-2" text-sm>
+        <div border="~ base rounded" p2 flex="~ gap-2 items-center">
+          <code flex-auto of-auto>{{ projectReport.commandPreview.migrateDefault }}</code>
+          <button btn-action-sm @click="copy(projectReport.commandPreview.migrateDefault)">
+            Copy
+          </button>
+        </div>
+        <div border="~ base rounded" p2 flex="~ gap-2 items-center">
+          <code flex-auto of-auto>{{ projectReport.commandPreview.migrateMax }}</code>
+          <button btn-action-sm @click="copy(projectReport.commandPreview.migrateMax)">
+            Copy
+          </button>
+        </div>
+        <div border="~ base rounded" p2 flex="~ gap-2 items-center">
+          <code flex-auto of-auto>{{ projectReport.commandPreview.runOxlintShadow }}</code>
+          <button btn-action-sm @click="copy(projectReport.commandPreview.runOxlintShadow)">
+            Copy
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <div flex="~ gap-2 items-center wrap" pb4>
+      <input
+        v-model="migrationRuleFilters.search"
+        placeholder="Search rule or reason..."
+        border="~ base rounded"
+        flex-auto bg-transparent px3 py2 md:max-w-100
+      >
+      <select v-model="migrationRuleFilters.status" border="~ base rounded" bg-transparent px3 py2>
+        <option
+          v-for="status of statusOptions"
+          :key="status.value || 'all'"
+          :value="status.value"
+        >
+          {{ status.label }}
+        </option>
+      </select>
+      <select v-model="pluginFilter" border="~ base rounded" bg-transparent px3 py2>
+        <option value="">
+          All plugins
+        </option>
+        <option v-for="plugin of pluginOptions" :key="plugin" :value="plugin">
+          {{ plugin }}
+        </option>
+      </select>
+      <select v-model="levelFilter" border="~ base rounded" bg-transparent px3 py2>
+        <option value="">
+          All levels
+        </option>
+        <option value="error">
+          error
+        </option>
+        <option value="warn">
+          warn
+        </option>
+        <option value="off">
+          off
+        </option>
+      </select>
+      <button btn-action px3 @click="resetFilters">
+        Reset
+      </button>
+    </div>
+
+    <div border="~ base rounded" of-hidden>
+      <table w-full text-sm>
+        <thead bg-gray:10>
+          <tr>
+            <th p2 text-left>
+              Rule
+            </th>
+            <th p2 text-left>
+              Status
+            </th>
+            <th p2 text-left>
+              Levels
+            </th>
+            <th p2 text-left>
+              Config Indexes
+            </th>
+            <th p2 text-left>
+              Reason
+            </th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr v-for="rule of filteredRules" :key="rule.name" border="t base">
+            <td p2 font-mono>
+              {{ rule.name }}
+            </td>
+            <td p2>
+              <span border="~ rounded" px2 py0.5 text-xs :class="statusClass(rule.status)">
+                {{ statusLabel(rule.status) }}
+              </span>
+            </td>
+            <td p2>
+              <span v-for="level of rule.eslintLevels" :key="level" mr1 rounded bg-gray:15 px1.5 py0.5 text-xs font-mono>
+                {{ level }}
+              </span>
+            </td>
+            <td p2 text-xs font-mono>
+              {{ rule.configIndexes.join(', ') }}
+            </td>
+            <td p2 op70>
+              {{ rule.reason || '-' }}
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+  <div v-else italic op60>
+    No project selected.
   </div>
 </template>

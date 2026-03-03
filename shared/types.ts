@@ -91,3 +91,79 @@ export interface RuleConfigState {
 }
 
 export type RuleConfigStates = RuleConfigState[]
+
+export type MigrationScenario = 'native' | 'default' | 'max'
+
+export type RuleSupportStatus
+  = | 'native_default'
+    | 'via_js_plugins'
+    | 'requires_nursery'
+    | 'requires_type_aware'
+    | 'not_implemented'
+    | 'unsupported'
+    | 'off_only'
+
+export interface AnalyzeWorkspaceOptions {
+  root: string
+  include?: string[]
+  exclude?: string[]
+  basePath?: string
+  globMatchedFiles?: boolean
+}
+
+export interface SkippedByCategory {
+  nursery: string[]
+  typeAware: string[]
+  jsPlugins: string[]
+  notImplemented: string[]
+  unsupported: string[]
+}
+
+export interface ProjectRuleReport {
+  name: string
+  status: RuleSupportStatus
+  eslintLevels: RuleLevel[]
+  configIndexes: number[]
+  reason?: string
+}
+
+export interface ProjectReport {
+  id: string
+  name: string
+  configPath: string
+  basePath: string
+  warnings: string[]
+  payload: Payload
+  stats: {
+    eslintActiveRules: number
+    coverageNativePct: number
+    coverageDefaultPct: number
+    coverageMaxPct: number
+    notImplemented: number
+    unsupported: number
+  }
+  skippedByCategory: SkippedByCategory
+  rules: ProjectRuleReport[]
+  commandPreview: {
+    migrateDefault: string
+    migrateMax: string
+    runOxlintShadow: string
+  }
+  dependencies: string[]
+}
+
+export interface WorkspaceReport {
+  generatedAt: number
+  root: string
+  projects: ProjectReport[]
+  totals: {
+    projectCount: number
+    eslintActiveRules: number
+    coverageDefaultPct: number
+    coverageMaxPct: number
+  }
+}
+
+export interface WorkspacePayload {
+  workspace: WorkspaceReport
+}

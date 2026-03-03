@@ -15,8 +15,23 @@ export const filtersRules = reactive({
   fixable: null as boolean | null,
 })
 
+export const migrationRuleFilters = reactive({
+  search: '',
+  status: '' as '' | 'native_default' | 'via_js_plugins' | 'requires_nursery' | 'requires_type_aware' | 'not_implemented' | 'unsupported' | 'off_only',
+})
+
+export const projectDashboardFilters = reactive({
+  search: '',
+  warningsOnly: false,
+})
+
+export const selectedProjectId = useLocalStorage(
+  'oxlint-migration-inspector:selected-project-id',
+  '',
+)
+
 export const stateStorage = useLocalStorage(
-  'eslint-config-viewer',
+  'oxlint-migration-inspector',
   {
     viewType: 'list' as 'list' | 'grid',
     viewFileMatchType: 'configs' as 'configs' | 'merged',

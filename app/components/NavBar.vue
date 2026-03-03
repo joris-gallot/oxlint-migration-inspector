@@ -1,38 +1,33 @@
 <script setup lang="ts">
-import { useRouter } from '#app/composables/router'
 import { useTimeAgo } from '@vueuse/core'
 import { computed } from 'vue'
 import { toggleDark } from '~/composables/dark'
-import { isFetching, payload } from '~/composables/payload'
-import { filtersRules as filters } from '~/composables/state'
+import { isFetching, payload, projectReport, projects, selectedProject, selectProject, workspace } from '~/composables/payload'
 
-const lastUpdate = useTimeAgo(() => payload.value.meta.lastUpdate)
+const lastUpdate = useTimeAgo(() => projectReport.value?.payload.meta.lastUpdate ?? workspace.value.generatedAt)
 
-const rules = computed(() => Object.values(payload.value.rules))
-const deprecatedUsing = computed(() => rules.value
-  .filter(rule => rule.deprecated && payload.value.ruleToState.get(rule.name)?.some(i => i.level !== 'off')))
+const projectLabel = computed(() => {
+  if (!selectedProject.value)
+    return 'No project selected'
 
-const router = useRouter()
-function showDeprecated() {
-  filters.status = 'deprecated'
-  filters.plugin = ''
-  filters.state = 'using'
-  filters.search = ''
-
-  if (router.currentRoute.value.path !== '/rules')
-    router.push('/rules')
-}
+  return `${selectedProject.value.name} (${selectedProject.value.stats.coverageDefaultPct}% default / ${selectedProject.value.stats.coverageMaxPct}% max)`
+})
 </script>
 
 <template>
   <ConfigInspectorBadge text-3xl font-200 />
-  <div v-if="payload.meta.configPath" flex="~ gap-1 items-center" my1 text-sm>
-    <span font-mono op35>{{ payload.meta.configPath }}</span>
+  <div flex="~ gap-2 items-center wrap" my1 text-sm>
+    <span op50>Workspace</span>
+    <span font-mono op35>{{ workspace.root }}</span>
   </div>
   <div flex="~ gap-1 items-center wrap" text-sm>
-    <span op50>Composed with</span>
-    <span font-bold>{{ payload.configs.length }}</span>
-    <span op50>config items, updated</span>
+    <span op50>Projects</span>
+    <span font-bold>{{ workspace.totals.projectCount }}</span>
+    <span op50>active ESLint rules</span>
+    <span font-bold>{{ workspace.totals.eslintActiveRules }}</span>
+    <span op50>coverage default/max</span>
+    <span font-bold>{{ workspace.totals.coverageDefaultPct }}% / {{ workspace.totals.coverageMaxPct }}%</span>
+    <span op50>updated</span>
     <span op75>{{ lastUpdate }}</span>
     <div
       v-if="isFetching"
@@ -43,14 +38,32 @@ function showDeprecated() {
       Fetching updates...
     </div>
   </div>
+
+  <div v-if="projects.length" mt4 flex="~ col gap-2">
+    <label text-sm op60>Selected project</label>
+    <select
+      border="~ base rounded"
+      bg-transparent p2
+      :value="selectedProject?.id"
+      @change="selectProject(($event.target as HTMLSelectElement).value)"
+    >
+      <option v-for="project of projects" :key="project.id" :value="project.id">
+        {{ project.name }} - {{ project.configPath }}
+      </option>
+    </select>
+    <div text-xs op60>
+      {{ projectLabel }}
+    </div>
+  </div>
+
   <div flex="~ gap-3 items-center wrap" py4>
     <NuxtLink
-      to="/configs"
+      to="/projects"
       btn-action px3 py1 text-base
       active-class="btn-action-active"
     >
-      <div i-ph-stack-duotone flex-none />
-      Configs
+      <div i-ph-chart-bar-duotone flex-none />
+      Projects
     </NuxtLink>
     <NuxtLink
       to="/rules"
@@ -58,7 +71,15 @@ function showDeprecated() {
       active-class="btn-action-active"
     >
       <div i-ph-list-dashes-duotone flex-none />
-      Rules
+      Migration Rules
+    </NuxtLink>
+    <NuxtLink
+      to="/configs"
+      btn-action px3 py1 text-base
+      active-class="btn-action-active"
+    >
+      <div i-ph-stack-duotone flex-none />
+      ESLint Configs
     </NuxtLink>
     <NuxtLink
       v-if="payload.filesResolved"
@@ -75,21 +96,8 @@ function showDeprecated() {
       @click="toggleDark()"
     />
     <NuxtLink
-      href="https://github.com/eslint/config-inspector" target="_blank"
+      href="https://github.com/oxc-project" target="_blank"
       i-carbon-logo-github text-lg op50 hover:op75
     />
-    <template v-if="deprecatedUsing.length">
-      <div border="l base" ml3 mr2 h-5 w-1px />
-      <button
-        to="/configs"
-        border="~ orange/20 rounded-full"
-        flex="~ gap-2 items-center"
-        bg-orange:5 px3 py1 text-sm text-orange hover:bg-orange:10
-        @click="showDeprecated"
-      >
-        <div i-ph-warning-duotone flex-none />
-        Using {{ deprecatedUsing.length }} deprecated rules
-      </button>
-    </template>
   </div>
 </template>

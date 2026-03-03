@@ -1,26 +1,22 @@
 import type { WebSocket } from 'ws'
-import type { Payload } from '~~/shared/types'
-import type { ReadConfigOptions } from './configs'
+import type { AnalyzeWorkspaceOptions, WorkspacePayload, WorkspaceReport } from '~~/shared/types'
 import process from 'node:process'
 import chokidar from 'chokidar'
 import { getPort } from 'get-port-please'
 import { WebSocketServer } from 'ws'
-import { readConfig, resolveConfigPath } from './configs'
 import { MARK_CHECK } from './constants'
-import { ConfigInspectorError } from './errors'
+import { analyzeWorkspace } from './core/analyze-workspace'
 
-const readErrorWarning = `Failed to load \`eslint.config.js\`.
-Note that \`@eslint/config-inspector\` only works with the flat config format:
+const readErrorWarning = `Failed to analyze workspace ESLint configs.
+Note that Oxlint Migration Inspector only works with ESLint flat configs:
 https://eslint.org/docs/latest/use/configure/configuration-files-new`
 
-export interface CreateWsServerOptions extends ReadConfigOptions {}
+export interface CreateWsServerOptions extends AnalyzeWorkspaceOptions {}
 
 export async function createWsServer(options: CreateWsServerOptions) {
-  let payload: Payload | undefined
+  let workspace: WorkspaceReport | undefined
   const port = await getPort({ port: 7811, random: true })
-  const wss = new WebSocketServer({
-    port,
-  })
+  const wss = new WebSocketServer({ port })
   const wsClients = new Set<WebSocket>()
 
   wss.on('connection', (ws) => {
@@ -29,29 +25,12 @@ export async function createWsServer(options: CreateWsServerOptions) {
     ws.on('close', () => wsClients.delete(ws))
   })
 
-  let resolvedConfigPath: Awaited<ReturnType<typeof resolveConfigPath>>
-  try {
-    resolvedConfigPath = await resolveConfigPath(options)
-  }
-  catch (e) {
-    if (e instanceof ConfigInspectorError) {
-      e.prettyPrint()
-      process.exit(1)
-    }
-    else {
-      throw e
-    }
-  }
-
-  const { basePath } = resolvedConfigPath
-
   const watcher = chokidar.watch([], {
     ignoreInitial: true,
-    cwd: basePath,
   })
 
   watcher.on('change', (path) => {
-    payload = undefined
+    workspace = undefined
     console.log()
     console.log(MARK_CHECK, 'Config change detected', path)
     wsClients.forEach((ws) => {
@@ -64,30 +43,42 @@ export async function createWsServer(options: CreateWsServerOptions) {
 
   async function getData() {
     try {
-      if (!payload) {
-        return await readConfig(options)
-          .then((res) => {
-            const _payload = payload = res.payload
-            _payload.meta.wsPort = port
-            watcher.add(res.dependencies)
-            return payload
-          })
+      if (!workspace) {
+        workspace = await analyzeWorkspace(options)
+        const dependencies = workspace.projects.flatMap(project => project.dependencies)
+        watcher.add(Array.from(new Set(dependencies)))
       }
+
+      const payload: WorkspacePayload = {
+        workspace: {
+          ...workspace,
+          projects: workspace.projects.map(project => ({
+            ...project,
+            payload: {
+              ...project.payload,
+              meta: {
+                ...project.payload.meta,
+                wsPort: port,
+              },
+            },
+          })),
+        },
+      }
+
       return payload
     }
     catch (e) {
       console.error(readErrorWarning)
-      if (e instanceof ConfigInspectorError) {
-        e.prettyPrint()
-      }
-      else {
-        console.error(e)
-      }
+      console.error(e)
       return {
         message: readErrorWarning,
         error: String(e),
       }
     }
+  }
+
+  if (!options.root) {
+    options.root = process.cwd()
   }
 
   return {

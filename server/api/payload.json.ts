@@ -3,7 +3,7 @@ import { createWsServer } from '~~/src/ws'
 
 export default lazyEventHandler(async () => {
   const ws = await createWsServer({
-    cwd: process.cwd(),
+    root: process.cwd(),
   })
 
   return defineEventHandler(async () => {

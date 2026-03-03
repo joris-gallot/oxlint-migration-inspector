@@ -2,7 +2,7 @@
 import { useRouter } from '#app/composables/router'
 
 const router = useRouter()
-router.replace('/configs')
+router.replace('/projects')
 </script>
 
 <template>
