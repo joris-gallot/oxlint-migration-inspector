@@ -15,7 +15,7 @@ This project is a fork of [eslint config-inspector](https://github.com/eslint/co
   - `default` (`jsPlugins=true`, `withNursery=false`, `typeAware=false`)
   - `max` (`jsPlugins=true`, `withNursery=true`, `typeAware=true`)
 - Classifies ESLint rules into migration statuses (`native_default`, `via_js_plugins`, `requires_nursery`, `requires_type_aware`, `not_implemented`, `unsupported`, `off_only`)
-- Provides command previews for incremental migration (`@oxlint/migrate` + `oxlint`)
+- Provides command previews for incremental migration (`@oxlint/migrate`)
 
 ## Usage
 
