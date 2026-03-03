@@ -45,6 +45,7 @@ const SCENARIO_OPTIONS: Record<
 export interface MigrationScenarioResult {
   scenario: MigrationScenario
   config: OxlintConfig
+  configJsonCode: string
   coveredRules: Set<string>
   skippedByCategory: SkippedByCategory
   warnings: string[]
@@ -124,10 +125,15 @@ async function runMigrationScenario(
   return {
     scenario,
     config,
+    configJsonCode: serializeOxlintConfig(config),
     coveredRules: collectEnabledRules(config),
     skippedByCategory: normalizeSkipped(reporter.getSkippedRulesByCategory()),
     warnings: reporter.getWarnings().sort((a, b) => a.localeCompare(b)),
   }
+}
+
+export function serializeOxlintConfig(config: OxlintConfig | null | undefined) {
+  return JSON.stringify(config ?? {}, null, 2)
 }
 
 function normalizeSkipped(

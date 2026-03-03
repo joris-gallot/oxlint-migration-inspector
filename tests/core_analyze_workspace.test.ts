@@ -25,7 +25,12 @@ describe('analyzeWorkspace', () => {
       expect(report.projects[0]?.name).toBe('frontend')
       expect(report.projects[0]?.stats.eslintActiveRules).toBeGreaterThanOrEqual(1)
       expect(report.projects[0]?.rules.some(rule => rule.name === 'no-console')).toBe(true)
+      expect(report.projects[0]?.commandPreview.migrateNative).toContain('--js-plugins=false --with-nursery=false --type-aware=false')
       expect(report.projects[0]?.commandPreview.migrateDefault).toContain('@oxlint/migrate')
+      expect(report.projects[0]?.migratedConfigs.native.format).toBe('json')
+      expect(() => JSON.parse(report.projects[0]?.migratedConfigs.native.code ?? '')).not.toThrow()
+      expect(() => JSON.parse(report.projects[0]?.migratedConfigs.default.code ?? '')).not.toThrow()
+      expect(() => JSON.parse(report.projects[0]?.migratedConfigs.max.code ?? '')).not.toThrow()
     }
     finally {
       await rm(root, { recursive: true, force: true })

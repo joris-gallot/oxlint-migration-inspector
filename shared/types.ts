@@ -127,6 +127,17 @@ export interface ProjectRuleReport {
   reason?: string
 }
 
+export interface MigratedScenarioConfig {
+  format: 'json'
+  code: string
+}
+
+export interface MigratedConfigsByScenario {
+  native: MigratedScenarioConfig
+  default: MigratedScenarioConfig
+  max: MigratedScenarioConfig
+}
+
 export interface ProjectReport {
   id: string
   name: string
@@ -144,7 +155,9 @@ export interface ProjectReport {
   }
   skippedByCategory: SkippedByCategory
   rules: ProjectRuleReport[]
+  migratedConfigs: MigratedConfigsByScenario
   commandPreview: {
+    migrateNative: string
     migrateDefault: string
     migrateMax: string
     runOxlintShadow: string

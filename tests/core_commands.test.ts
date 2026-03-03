@@ -8,6 +8,7 @@ describe('buildProjectCommands', () => {
       '/workspace/components/frontend',
     )
 
+    expect(commands.migrateNative).toContain('--js-plugins=false --with-nursery=false --type-aware=false')
     expect(commands.migrateDefault).toContain('npx @oxlint/migrate')
     expect(commands.migrateDefault).toContain('\'eslint.config.ts\'')
     expect(commands.migrateMax).toContain('--with-nursery --type-aware --js-plugins=true')

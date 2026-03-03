@@ -74,6 +74,14 @@ const projectLabel = computed(() => {
       Migration Rules
     </NuxtLink>
     <NuxtLink
+      to="/migrated-config"
+      btn-action px3 py1 text-base
+      active-class="btn-action-active"
+    >
+      <div i-ph-file-code-duotone flex-none />
+      Migrated Config
+    </NuxtLink>
+    <NuxtLink
       to="/configs"
       btn-action px3 py1 text-base
       active-class="btn-action-active"

@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import type { RuleLevel, RuleSupportStatus } from '~~/shared/types'
-import { useClipboard } from '@vueuse/core'
 import { computed, ref } from 'vue'
 import { migrationRules, projectReport } from '~/composables/payload'
 import { migrationRuleFilters } from '~/composables/state'
@@ -57,8 +56,6 @@ const statusOptions: Array<{ value: RuleSupportStatus | '', label: string }> = [
   { value: 'unsupported', label: 'Unsupported' },
   { value: 'off_only', label: 'Off only' },
 ]
-
-const { copy } = useClipboard()
 
 function pluginFromRule(ruleName: string) {
   const slashIndex = ruleName.indexOf('/')
@@ -172,32 +169,6 @@ function resetFilters() {
             {{ rule.name }}
           </li>
         </ul>
-      </div>
-    </div>
-
-    <div border="~ base rounded" mb4 p3>
-      <div mb2 text-sm font-semibold>
-        Command Preview
-      </div>
-      <div flex="~ col gap-2" text-sm>
-        <div border="~ base rounded" p2 flex="~ gap-2 items-center">
-          <code flex-auto of-auto>{{ projectReport.commandPreview.migrateDefault }}</code>
-          <button btn-action-sm @click="copy(projectReport.commandPreview.migrateDefault)">
-            Copy
-          </button>
-        </div>
-        <div border="~ base rounded" p2 flex="~ gap-2 items-center">
-          <code flex-auto of-auto>{{ projectReport.commandPreview.migrateMax }}</code>
-          <button btn-action-sm @click="copy(projectReport.commandPreview.migrateMax)">
-            Copy
-          </button>
-        </div>
-        <div border="~ base rounded" p2 flex="~ gap-2 items-center">
-          <code flex-auto of-auto>{{ projectReport.commandPreview.runOxlintShadow }}</code>
-          <button btn-action-sm @click="copy(projectReport.commandPreview.runOxlintShadow)">
-            Copy
-          </button>
-        </div>
       </div>
     </div>
 

@@ -46,6 +46,20 @@ export async function analyzeWorkspace(options: AnalyzeWorkspaceOptions): Promis
         stats: classified.stats,
         skippedByCategory: classified.skippedByCategory,
         rules: classified.rules,
+        migratedConfigs: {
+          native: {
+            format: 'json',
+            code: scenarios.native.configJsonCode,
+          },
+          default: {
+            format: 'json',
+            code: scenarios.default.configJsonCode,
+          },
+          max: {
+            format: 'json',
+            code: scenarios.max.configJsonCode,
+          },
+        },
         commandPreview: buildProjectCommands(configPath, parsed.payload.meta.basePath),
         dependencies: uniqueSorted([configPath, ...parsed.dependencies]),
       })
@@ -88,6 +102,11 @@ export async function analyzeWorkspace(options: AnalyzeWorkspaceOptions): Promis
           unsupported: [],
         },
         rules: [],
+        migratedConfigs: {
+          native: { format: 'json', code: '{}' },
+          default: { format: 'json', code: '{}' },
+          max: { format: 'json', code: '{}' },
+        },
         commandPreview: buildProjectCommands(configPath, fallbackBasePath),
         dependencies: [configPath],
       })

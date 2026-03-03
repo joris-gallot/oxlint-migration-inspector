@@ -14,6 +14,7 @@ createHighlighterCore({
   langs: [
     import('@shikijs/langs-precompiled/javascript'),
     import('@shikijs/langs-precompiled/typescript'),
+    import('@shikijs/langs-precompiled/json'),
     import('textmate-grammar-glob/grammars/glob.json') as any,
   ],
   engine: createJavaScriptRegexEngine(),

@@ -11,6 +11,7 @@ function createScenarioResult(
   return {
     scenario,
     config: {},
+    configJsonCode: '{}',
     coveredRules: new Set(coveredRules),
     skippedByCategory: {
       nursery: [],
