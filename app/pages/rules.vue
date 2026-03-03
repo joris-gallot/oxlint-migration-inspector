@@ -236,7 +236,7 @@ function resetFilters() {
             </th>
           </tr>
         </thead>
-        <tbody>
+        <tbody v-if="filteredRules.length">
           <tr v-for="rule of filteredRules" :key="rule.name" border="t base">
             <td p2 font-mono>
               {{ rule.name }}
@@ -256,6 +256,13 @@ function resetFilters() {
             </td>
             <td p2 op70>
               {{ rule.reason || '-' }}
+            </td>
+          </tr>
+        </tbody>
+        <tbody v-else>
+          <tr border="t base">
+            <td colspan="5" py40 text-center text-sm italic op60>
+              No rules match the current filters.
             </td>
           </tr>
         </tbody>
