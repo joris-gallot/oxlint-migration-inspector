@@ -6,12 +6,12 @@
   "description": "A visual tool to migrate incrementally from ESLint flat config to Oxlint",
   "license": "Apache-2.0",
   "funding": "https://opencollective.com/eslint",
-  "homepage": "https://github.com/oxc-project/oxlint-migration-inspector#readme",
+  "homepage": "https://github.com/joris-gallot/oxlint-migration-inspector#readme",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/oxc-project/oxlint-migration-inspector.git"
+    "url": "git+https://github.com/joris-gallot/oxlint-migration-inspector.git"
   },
-  "bugs": "https://github.com/oxc-project/oxlint-migration-inspector/issues",
+  "bugs": "https://github.com/joris-gallot/oxlint-migration-inspector/issues",
   "bin": {
     "oxlint-migration-inspector": "./bin.mjs",
     "eslint-config-inspector": "./bin.mjs"
