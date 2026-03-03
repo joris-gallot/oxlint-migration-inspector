@@ -5,7 +5,7 @@ A visual tool to migrate incrementally from ESLint flat config to Oxlint.
 
 ## Attribution
 
-This project is derived from [eslint config-inspector](https://github.com/eslint/config-inspector) and remains distributed under the Apache-2.0 license.
+This project is a fork of [eslint config-inspector](https://github.com/eslint/config-inspector) and remains distributed under the Apache-2.0 license.
 
 ## What It Does
 
